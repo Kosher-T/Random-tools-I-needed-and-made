@@ -9,14 +9,16 @@ import sys
 import os
 
 # --- Constants ---
-OUTPUT_FILENAME = "generated_intermediate_frame_dense_fixed.png"
+OUTPUT_FILENAME = "generated_intermediate_frame_dense_fixed_v2.png" # Output file updated for new attempt
 # Add a slight blur to the flow field to reduce noise and artifacts in the warping
 FLOW_BLUR_KERNEL = (5, 5) 
+# Filter kernel size for post-processing noise cleanup (must be odd)
+MEDIAN_BLUR_KERNEL = 3 
 
 def generate_intermediate_frame(img1_path, img2_path, alpha=0.5):
     """
     Generates an intermediate frame using Dense Optical Flow (Farneback method) 
-    for motion compensation, followed by improved blending.
+    for motion compensation, followed by improved blending and noise cleanup.
     
     Args:
         img1_path (str): Path to the first image (Frame 1, t=0).
@@ -50,7 +52,8 @@ def generate_intermediate_frame(img1_path, img2_path, alpha=0.5):
     # --- Step 1: Calculate Dense Optical Flow (Motion Field) ---
     print("2. Calculating Dense Optical Flow (Farneback Method)...")
     # flow is calculated using the standard grayscale images
-    flow = cv2.calcOpticalFlowFarneback(gray1, gray2, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+    # *** FIX 2: Increased iterations from 15 to 30 for better convergence ***
+    flow = cv2.calcOpticalFlowFarneback(gray1, gray2, None, 0.5, 3, 30, 3, 5, 1.2, 0)
     
     # *** FIX 1: Smooth the flow field to reduce noise/artifacts ***
     print("2a. Smoothing flow field...")
@@ -102,8 +105,11 @@ def generate_intermediate_frame(img1_path, img2_path, alpha=0.5):
     # Since inputs are float32, the output is float32
     intermediate_frame_float = cv2.addWeighted(warped_img1, 0.5, warped_img2, 0.5, 0.0)
     
-    # Convert the final frame back to uint8 (0-255) for saving
+    # --- Step 4: Post-Processing Cleanup ---
+    # *** NEW FIX: Use median blur to remove high-frequency noise/artifacts from warping ***
+    print("6. Applying Median Blur for final cleanup...")
     intermediate_frame = intermediate_frame_float.astype(np.uint8)
+    intermediate_frame = cv2.medianBlur(intermediate_frame, MEDIAN_BLUR_KERNEL)
     
     return intermediate_frame
 
