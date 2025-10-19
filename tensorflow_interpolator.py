@@ -26,7 +26,7 @@ except ImportError:
 # --- Configuration for the Real Model ---
 OUTPUT_FILENAME = "generated_intermediate_frame_TF_simulated.png"
 T = 0.5 # Time step for interpolation (0.5 = exactly in the middle)
-SIMULATED_OUTPUT_PATH = "2frame.jpg" # The perfect ground truth frame
+SIMULATED_OUTPUT_PATH = "2frame.png" # The perfect ground truth frame
 
 def build_synthesis_network(input_shape=(None, None, 6)):
     """
