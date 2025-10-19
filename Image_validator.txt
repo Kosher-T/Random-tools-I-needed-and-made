@@ -1,89 +1,92 @@
-# --- Image Similarity Validator using Structural Similarity (SSIM) ---
+# --- Image Similarity Validator (SSIM) - Command Line Utility ---
 
-# GOAL: Create a robust, standalone function to compare two images and 
-# assign a numeric similarity score. This is the validation step for the MLOps pipeline.
+# GOAL: Accept two image file paths from the command line, load them, 
+# and calculate the Structural Similarity Index Measure (SSIM) between them.
+# The first image (target) serves as the standard, and the second (candidate) 
+# is the one being evaluated.
 
 import cv2
 import numpy as np
+import sys # Required to read command line arguments
 from skimage.metrics import structural_similarity as ssim
 
-# --- Setup: Mock Image Generation (for immediate testing) ---
-
-def generate_mock_image(color, width=300, height=300, text=""):
-    """Creates a simple, colored square image with optional text."""
-    img = np.zeros((height, width, 3), dtype=np.uint8)
-    img[:, :] = color
-    if text:
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        # Ensure text color is distinct from background (using white)
-        cv2.putText(img, text, (50, height // 2), font, 1, (255, 255, 255), 2, cv2.LINE_AA)
-    return img
+# --- Core Similarity Function (Unchanged) ---
 
 def calculate_ssim(imgA, imgB):
     """
     Calculates the Structural Similarity Index Measure (SSIM) between two images.
     
-    SSIM is generally preferred over simple metrics like Mean Squared Error 
-    (MSE) because it better aligns with human visual perception.
-    
     Args:
-        imgA (np.ndarray): The first image.
-        imgB (np.ndarray): The second image.
+        imgA (np.ndarray): The first image (Target/Standard).
+        imgB (np.ndarray): The second image (Candidate/Comparison).
         
     Returns:
         float: The SSIM score (1.0 = identical, 0.0 = completely different).
     """
     # 1. Convert to Grayscale
-    # SSIM often works best on grayscale images as it focuses on structure
-    # and contrast rather than exact color values.
+    # SSIM often works best on grayscale images.
     grayA = cv2.cvtColor(imgA, cv2.COLOR_BGR2GRAY)
     grayB = cv2.cvtColor(imgB, cv2.COLOR_BGR2GRAY)
     
     # 2. Check Dimensions
-    # This is critical. SSIM requires both images to have the exact same size.
+    # Critical: SSIM requires both images to have the exact same size.
     if grayA.shape != grayB.shape:
         print("Error: Images must have the same dimensions for comparison.")
         return 0.0
     
     # 3. Calculate SSIM
-    # full=True returns the SSIM score and the SSIM map (for visualization)
     (score, diff_map) = ssim(grayA, grayB, full=True)
     
     return score
 
-# --- Test Scenarios ---
+# --- Execution as a Command Line Utility ---
 
-# 1. Frame 2 (The Real Target Frame) - Target for the SSIM test
-TARGET_COLOR = (128, 128, 0) # Dark Cyan
-target_frame = generate_mock_image(TARGET_COLOR, text="Target Frame (Real F2)")
+if __name__ == "__main__":
+    
+    # Check if the user provided exactly two file paths
+    if len(sys.argv) != 3:
+        print("\n--- ERROR ---")
+        print("Usage: python image_validator.py <path_to_target_image> <path_to_candidate_image>")
+        print("Example: python image_validator.py frames/real_f2.png frames/generated_f2.png")
+        sys.exit(1)
 
-# 2. The Ideal Generated Frame (Should match perfectly: SSIM ≈ 1.0)
-ideal_generated_frame = generate_mock_image(TARGET_COLOR, text="Ideal Generated F2")
+    # File paths are stored in sys.argv[1] and sys.argv[2]
+    target_path = sys.argv[1]
+    candidate_path = sys.argv[2]
+    
+    print(f"\n--- SSIM Validation Utility ---")
+    print(f"Target/Standard Image: {target_path}")
+    print(f"Candidate/Comparison Image: {candidate_path}")
 
-# 3. A Very Poorly Generated Frame (Should score low: SSIM ≈ 0.0)
-poor_generated_frame = generate_mock_image((0, 255, 0), text="Bad Generated F2") # Bright Green
+    # Load images using OpenCV
+    img_target = cv2.imread(target_path)
+    img_candidate = cv2.imread(candidate_path)
 
-# 4. A Partially Similar Generated Frame (Blend of Target and a completely different color)
-# This simulates a blend, which is a common interpolation error.
-blend_color = (TARGET_COLOR[0] // 2, TARGET_COLOR[1], 255) # Half Cyan, Half Red
-partially_similar_frame = generate_mock_image(blend_color, text="Blended Generated F2")
+    # Check if images were loaded successfully
+    if img_target is None:
+        print(f"\nERROR: Could not load Target image at '{target_path}'. Check path and file format.")
+        sys.exit(1)
+        
+    if img_candidate is None:
+        print(f"\nERROR: Could not load Candidate image at '{candidate_path}'. Check path and file format.")
+        sys.exit(1)
+    
+    # Calculate the similarity score
+    try:
+        ssim_score = calculate_ssim(img_target, img_candidate)
+        
+        # Output the final result
+        print("\n--- RESULT ---")
+        print(f"Structural Similarity Index Measure (SSIM) Score: {ssim_score:.6f}")
+        
+        # Provide interpretation
+        if ssim_score >= 0.95:
+            print("Interpretation: Excellent similarity. The candidate frame is nearly identical to the target.")
+        elif ssim_score >= 0.70:
+            print("Interpretation: Good similarity. The structure and contrast are well preserved.")
+        else:
+            print("Interpretation: Low similarity. The frames differ significantly.")
 
-
-# --- Execution ---
-
-print("--- Frame Validation Results ---")
-
-# Scenario A: Perfect Match (Should be close to 1.0)
-score_perfect = calculate_ssim(target_frame, ideal_generated_frame)
-print(f"A. SSIM Score (Target vs. Ideal Match): {score_perfect:.4f}")
-
-# Scenario B: Poor Match (Should be close to 0.0)
-score_poor = calculate_ssim(target_frame, poor_generated_frame)
-print(f"B. SSIM Score (Target vs. Poor Match): {score_poor:.4f}")
-
-# Scenario C: Blended/Partial Match (Should be between 0.0 and 1.0)
-score_blend = calculate_ssim(target_frame, partially_similar_frame)
-print(f"C. SSIM Score (Target vs. Partial Match): {score_blend:.4f}")
-
-# NOTE: To run this script, you need two libraries:
-# pip install opencv-python numpy scikit-image
+    except Exception as e:
+        print(f"An unexpected error occurred during processing: {e}")
+        sys.exit(1)
