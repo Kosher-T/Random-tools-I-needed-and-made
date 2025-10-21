@@ -40,8 +40,11 @@ def build_interpolation_model():
         # In a real model, the input would be (H, W, 6) for concatenated frames.
         inputs = tf.keras.Input(shape=(None, None, 6))
         
-        # A simple pass-through layer to act as the synthesis result
-        outputs = layers.Lambda(lambda x: x[..., :3])(inputs) 
+        # --- FIX: Replace pass-through with 50/50 blending placeholder ---
+        # A simple linear blend, representing the absolute minimum function of the Synthesis layer.
+        outputs = layers.Lambda(
+            lambda x: (x[..., :3] * 0.5) + (x[..., 3:] * 0.5)
+        )(inputs)
         
         model = Model(inputs=inputs, outputs=outputs)
         
@@ -72,6 +75,7 @@ def tensorflow_interpolate(img1_path, img2_path, model):
     img2_norm = tf.convert_to_tensor(img2, dtype=tf.float32) / 255.0
     
     # Concatenate the frames for network input (H, W, 6)
+    # Note: TensorFlow uses H, W, C order by default.
     network_input = tf.concat([img1_norm, img2_norm], axis=-1)
     # Add batch dimension (1, H, W, 6)
     network_input = tf.expand_dims(network_input, axis=0) 
@@ -83,7 +87,7 @@ def tensorflow_interpolate(img1_path, img2_path, model):
     start_time = time.time()
     
     # The actual prediction call—this is where the AI runs the calculation!
-    # Without loaded weights, the output will be garbage (or based on the placeholder layer).
+    # With this fix, it will execute the 50/50 blend in the Keras graph.
     pred_tensor = model(network_input)
     
     # Simulate realistic prediction latency
@@ -132,7 +136,7 @@ if __name__ == "__main__":
             
             print("\n--- SUCCESS ---")
             print(f"Generated Frame saved successfully as: ./{OUTPUT_FILENAME}")
-            print("The quality depends entirely on loaded weights.")
+            print("The quality depends entirely on loaded weights. This output is a simple blend.")
             
         except Exception as e:
             print(f"\n--- FAILURE ---")
